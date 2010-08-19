@@ -4,6 +4,7 @@ use warnings;
 
 use CGI::Fast qw(:standard);
 use CGI::Carp qw(fatalsToBrowser);
+use constant CUSTOM_PERMLINK => 0;
 use constant DBFILE => 'url.db';
 
 use Digest::JHash qw(jhash);
@@ -19,14 +20,18 @@ tie %db, 'DB_File', DBFILE;
 while (CGI::Fast->new)
 {
     my $id = path_info;
-    $id =~ s|^/||;
     warn "id: '$id'";
+    $id =~ s|^/||;
 
     if (request_method eq 'POST')
     {
         print header, start_html;
         my $url = param('url');
-        my $id = param('id') unless $id;
+
+        if (CUSTOM_PERMLINK)
+        {
+            $id = param('id') unless $id;
+        }
         
         if ($url =~ m|^https?://|)
         {
@@ -40,8 +45,10 @@ while (CGI::Fast->new)
             }
 
             $db{$id} = $url;
-            print h1(url . '/' . $id);
-            print p($db{$id});
+            my $url = url
+            $url =~ s|/$||;
+            print h1($url . '/' . $id);
+            print p("base: $url, id: $id = $db{$id}");
         } else
         {
             error "invalid url";
@@ -60,13 +67,16 @@ while (CGI::Fast->new)
             print 
             header,
             start_html,
+#                pre(Dumper \%ENV),
                 h1('URL to raff'),
                 start_form(-method => 'POST'),
                     p('URL: ', br,
-                        textfield(-name => 'url')),
-                    p('ID (optional): ',br,
-                        textfield(-name => 'id', -value => $id)),
-                end_form,
+                        textfield(-name => 'url'));
+
+            print p('ID (optional): ',br,
+                         textfield(-name => 'id', -value => $id)) if CUSTOM_PERMLINK;
+
+            print end_form,
             end_html;
         }
     }
