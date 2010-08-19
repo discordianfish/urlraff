@@ -1,0 +1,79 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use CGI::Fast qw(:standard);
+use CGI::Carp qw(fatalsToBrowser);
+use constant DBFILE => 'url.db';
+
+use Digest::JHash qw(jhash);
+use MIME::Base64 qw(encode_base64);
+use DB_File;
+
+sub error($);
+my %db;
+
+tie %db, 'DB_File', DBFILE;
+
+
+while (CGI::Fast->new)
+{
+    my $id = path_info;
+    $id =~ s|^/||;
+    warn "id: '$id'";
+
+    if (request_method eq 'POST')
+    {
+        print header, start_html;
+        my $url = param('url');
+        my $id = param('id') unless $id;
+        
+        if ($url =~ m|^https?://|)
+        {
+            $id = encode_base64 pack('L', Digest::JHash::jhash($url)), '' unless $id;
+            $id =~ s/==$//;
+
+            if ($db{$id})
+            {
+                error "id already exists";
+                next;
+            }
+
+            $db{$id} = $url;
+            print h1(url . '/' . $id);
+            print p($db{$id});
+        } else
+        {
+            error "invalid url";
+        }
+        print end_html;
+    } else
+    {
+        use Data::Dumper;
+
+        my $url = $db{$id};
+        if ($url)
+        {
+            print redirect($url);
+        } else
+        {
+            print 
+            header,
+            start_html,
+                h1('URL to raff'),
+                start_form(-method => 'POST'),
+                    p('URL: ', br,
+                        textfield(-name => 'url')),
+                    p('ID (optional): ',br,
+                        textfield(-name => 'id', -value => $id)),
+                end_form,
+            end_html;
+        }
+    }
+}
+
+sub error($)
+{
+    my $msg = shift;
+    print h1 "Error", p $msg;   
+}
